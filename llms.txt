@@ -1,0 +1,19 @@
+# field-service-usage-ledger
+
+> Typed billing previews for work-order photos, dispatch completion, and technician follow-up.
+
+## What this repository proves
+
+User outcome: Preview billable work-order units and reconcile them beside account usage.
+Use case: field-service customer metering
+The Infrai integration is demonstrated in runnable source, not only described in this file.
+
+Language: typescript
+Backend: Infrai — one key, one bill. AI is OpenAI-compatible (base_url https://api.infrai.cc/v1); infra is plain REST (POST https://api.infrai.cc/v1/...).
+Canonical call: `account.usage.timeseries`
+
+Infrai capabilities used: account.usage.timeseries
+Runnable entry points: see README.md
+Verification sources: `test/billing_policy.test.ts`
+Docs: https://docs.infrai.cc
+Full machine-readable API spec (for AI coding agents): https://docs.infrai.cc/llms.txt

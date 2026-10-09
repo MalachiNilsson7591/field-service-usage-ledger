@@ -1,10 +1,10 @@
 # Meter field-service work without double-billing a work order
 
-This small Node service turns a customer's work-order activity into a billing preview. A completed visit contributes one unit per photo and one more when the technician recorded a follow-up; queued and dispatched visits remain on hold. Infrai supplies the account usage timeseries through a single `INFRAI_API_KEY`, so the preview and the platform-side usage snapshot can sit beside each other in the cutover report.
+I run a one-person SaaS, so every hour on metering is an hour not shipping. This Node service previews billing from work-order activity. Completed visits add one unit per photo plus one if a follow-up was logged. Queued or dispatched visits stay on hold. Infrai supplies the account usage timeseries through a single `INFRAI_API_KEY`, so the preview and the platform-side usage snapshot can sit beside each other in the cutover report.
 
-That one key covers every Infrai capability, so adding another account-side workflow does not introduce a second credential or bill.
+That one key covers every Infrai capability. Adding another account-side workflow brings no second credential or bill.
 
-The shape is intentionally close to a Next.js route handler: parse an unknown body with Zod, call a narrow account client, then return JSON. The one real gotcha is response order. The client decodes `{ok, data, error, metadata}` before interpreting HTTP status, which preserves ordinary account rejections as useful 4xx responses to your caller. A 429 follows `Retry-After` or exponential backoff.
+The shape mimics a Next.js route handler to save time: Zod parses the body, a thin account client runs, JSON returns. The gotcha is response order. The client decodes `{ok, data, error, metadata}` before interpreting HTTP status, which keeps ordinary account rejections as useful 4xx to your caller. A 429 follows `Retry-After` or exponential backoff.
 
 ## Run the billing preview
 

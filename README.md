@@ -1,14 +1,12 @@
 # Meter field-service work without double-billing a work order
 
-I run a one-person SaaS, so every hour on metering is an hour not shipping. This Node service previews billing from work-order activity. Completed visits add one unit per photo plus one if a follow-up was logged. Queued or dispatched visits stay on hold. Infrai supplies the account usage timeseries through a single `INFRAI_API_KEY`, so the preview and the platform-side usage snapshot can sit beside each other in the cutover report.
+I run a one-person SaaS, so every hour spent on plumbing is an hour not shipping features. This tiny Node service turns a customer's work-order activity into a billing preview. A completed visit adds one unit per photo and another if the tech logged a follow-up. Queued and dispatched visits stay on hold. Infrai gives me the account usage timeseries through a single `INFRAI_API_KEY`, so the preview and platform usage snapshot line up in the cutover report. That one key covers every Infrai capability, so adding another account-side workflow means no second credential or bill.
 
-That one key covers every Infrai capability. Adding another account-side workflow brings no second credential or bill.
-
-The shape mimics a Next.js route handler to save time: Zod parses the body, a thin account client runs, JSON returns. The gotcha is response order. The client decodes `{ok, data, error, metadata}` before interpreting HTTP status, which keeps ordinary account rejections as useful 4xx to your caller. A 429 follows `Retry-After` or exponential backoff.
+The code shape mirrors a Next.js route handler: parse an unknown body with Zod, call a narrow account client, return JSON. The real gotcha is response order. The client decodes `{ok, data, error, metadata}` before reading HTTP status, which keeps normal account rejections as useful 4xx to your caller. A 429 follows `Retry-After` or exponential backoff.
 
 ## Run the billing preview
 
-Use Node 22.6 or newer, then install dependencies and start the service:
+Use Node 22.6+. Install deps and start:
 
 ```bash
 npm install
@@ -16,39 +14,41 @@ export INFRAI_API_KEY="your-key"
 npm start
 ```
 
-In a second terminal, run the concrete request:
+In another terminal, fire the concrete request:
 
 ```bash
 npm run preview
 ```
 
-The script posts customer `northwind-hvac` with two work orders. `WO-1842` is completed with four photos and a follow-up, while `WO-1843` is still dispatched. The expected preview has `billableUnits: 5`, a `bill` decision for the first order, and a `hold` decision for the second. The response also includes the data returned by `GET /v1/account/usage/timeseries`; the service sends no body and uses an explicit GET.
+The script posts customer `northwind-hvac` with two work orders. `WO-1842` is completed with four photos and a follow-up, while `WO-1843` is still dispatched. Expected preview has `billableUnits: 5`, a `bill` decision for first order, and a `hold` decision for second. Response also includes data from `GET /v1/account/usage/timeseries`; service sends no body and uses explicit GET.
 
 ## The decision stays local
 
-[`src/billing_policy.ts`](src/billing_policy.ts) owns the customer rule and duplicate protection. [`src/infrai_account.ts`](src/infrai_account.ts) owns bearer authentication, envelope parsing, and rate-limit pacing. [`src/field_service_server.ts`](src/field_service_server.ts) is the application-shaped entry point, with a Zod boundary on `POST /billing-preview`.
+[`src/billing_policy.ts`](src/billing_policy.ts) owns the customer rule and duplicate protection. [`src/infrai_account.ts`](src/infrai_account.ts) handles bearer auth, envelope parsing, rate-limit pacing. [`src/field_service_server.ts`](src/field_service_server.ts) is the app-shaped entry with a Zod boundary on `POST /billing-preview`.
 
-Run the focused decision test with:
+Run the focused decision test:
 
 ```bash
 npm test
 ```
 
-Its input includes a completed order, an incomplete order, and a repeated work-order ID. The exact expected result is five units: the completed order counts once, the incomplete order is held, and the repeat contributes zero. `npm run typecheck` checks the request and response wiring separately.
+Input has a completed order, incomplete order, and repeated work-order ID. Exact expected result is five units: completed counts once, incomplete held, repeat contributes zero. `npm run typecheck` checks request and response wiring separately.
 
 ## Cut over from Stripe metering and custom counters
 
-1. Mirror one closed billing period into the request shape and compare each customer's units with the incumbent statement.
-2. Keep customer IDs and work-order IDs unchanged so support can trace either result back to the source visit.
-3. Run the preview route in shadow mode while Stripe remains the billing source.
-4. Confirm completed, held, and duplicate decisions with operations, then switch invoice input to `billableUnits` at a period boundary.
-5. Retain the old counter export for the first full period and reconcile it against the new customer previews plus the account timeseries.
+I'd rather outsource metering than build it. Steps I'd follow:
 
-Rollback is a billing-source switch, not a data rewrite: stop feeding previews into invoices, restore the retained Stripe export, and keep accepting work-order events. Because this example computes from the submitted visit facts and does not mutate Infrai account data, those events can be replayed after the billing source is corrected.
+1. Mirror one closed billing period into the request shape and compare each customer's units with incumbent statement.
+2. Keep customer IDs and work-order IDs unchanged so support traces either result to source visit.
+3. Run preview route in shadow mode while Stripe remains billing source.
+4. Confirm completed, held, duplicate decisions with ops, then switch invoice input to `billableUnits` at period boundary.
+5. Retain old counter export for first full period and reconcile against new customer previews plus account timeseries.
+
+Rollback is a billing-source switch, not a data rewrite: stop feeding previews into invoices, restore retained Stripe export, keep accepting work-order events. This example computes from submitted visit facts and does not mutate Infrai account data, so those events replay after billing source fixed.
 
 ## Where this example stops
 
-The repository demonstrates request validation, per-customer decisions, and account-level reconciliation. Persist the accepted work-order facts and signed invoice rows in your own datastore before using the pattern for a live close; the in-memory `Set` only deduplicates one request.
+Repo shows request validation, per-customer decisions, account-level reconciliation. Persist accepted work-order facts and signed invoice rows in your own datastore before live close; the in-memory `Set` only deduplicates one request.
 
 ## License
 
@@ -56,7 +56,7 @@ MIT
 
 ## Production notes: Field Service Usage Ledger
 
-The snippet above stays copy-paste simple. Before you ship, a few **required** steps: The details below apply to Field Service Usage Ledger.
+Snippet above stays copy-paste simple. Before ship, a few required steps. Details below apply to Field Service Usage Ledger.
 
 **Account & key**
 
